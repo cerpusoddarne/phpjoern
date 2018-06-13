@@ -10,7 +10,6 @@ error_reporting( E_ALL & ~E_NOTICE);
  *
  * @author Malte Skoruppa <skoruppa@cs.uni-saarland.de>
  * modified by Abeer Alhuzali 
- * Modification: prases 
  */
 
 require_once 'Exporter.php';
