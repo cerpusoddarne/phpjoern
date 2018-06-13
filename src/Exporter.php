@@ -14,6 +14,7 @@ include_once('TaintSource.php');
  *
  * @author Malte Skoruppa <skoruppa@cs.uni-saarland.de>
  */
+
 abstract class Exporter {
 
   /** Node counter */

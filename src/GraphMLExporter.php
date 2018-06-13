@@ -7,6 +7,7 @@ require_once 'Exporter.php';
  *
  * @author Malte Skoruppa <skoruppa@cs.uni-saarland.de>
  */
+
 class GraphMLExporter extends Exporter {
 
   /** Default name of GraphML file */

@@ -88,6 +88,7 @@ class CSVExporter extends Exporter {
 
     fwrite( $this->nhandle, "{$this->nodecount}{$this->csv_delim}{$label}{$this->csv_delim}{$type}{$this->csv_delim}{$flags}{$this->csv_delim}{$lineno}{$this->csv_delim}{$code}{$this->csv_delim}{$childnum}{$this->csv_delim}{$funcid}{$this->csv_delim}{$classname}{$this->csv_delim}{$namespace}{$this->csv_delim}{$endlineno}{$this->csv_delim}{$name}{$this->csv_delim}{$doccomment}{$this->csv_delim}{$db}\n");
 
+
     // return the current node index, *then* increment it
     return $this->nodecount++;
   }
