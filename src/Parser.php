@@ -1,4 +1,6 @@
 <?php declare( strict_types = 1);
+include_once('TaintedVariables.php');
+require_once('TaintSource.php');
 
 // report on errors, except notices
 error_reporting( E_ALL & ~E_NOTICE);
@@ -7,6 +9,8 @@ error_reporting( E_ALL & ~E_NOTICE);
  * This program looks for PHP files in a given directory and dumps ASTs.
  *
  * @author Malte Skoruppa <skoruppa@cs.uni-saarland.de>
+ * modified by Abeer Alhuzali 
+ * Modification: prases 
  */
 
 require_once 'Exporter.php';
@@ -20,7 +24,7 @@ $relfile = CSVExporter::REL_FILE; // name of relationship file when using CSV fo
 $outfile = GraphMLExporter::GRAPHML_FILE; // name of output file when using GraphML format (default: graph.xml)
 $scriptname = null; // this script's name
 $startcount = 0; // the start count for numbering nodes
-
+$dbConstrFile = null; //file of apps schema file in csv format
 /**
  * Parses the cli arguments.
  *
@@ -57,7 +61,7 @@ function parse_arguments() {
 
   // Parse options
   $longopts  = ["help", "version", "format:", "nodes:", "relationships:", "out:", "count:"];
-  $options = getopt( "hvf:n:r:o:c:", $longopts);
+  $options = getopt( "hvf:n:r:o:c:d:", $longopts);
   if( $options === FALSE) {
     error_log( '[ERROR] Could not parse command line arguments.');
     return false;
@@ -123,6 +127,12 @@ function parse_arguments() {
     $startcount = (int)($options['count'] ?? $options['c']);
   }
 
+ //Navex: add an option for reading and processing db contraints file
+  if( isset( $options['db']) || isset( $options['d'])) {
+    global $dbConstrFile;
+    $dbConstrFile = $options['db'] ?? $options['d'];
+  }
+
   return true;
 }
 
@@ -164,6 +174,7 @@ function print_help() {
   echo '  -r, --relationships <file> Output file for relationships (for CSV output, i.e., jexp or neo4j modes)', PHP_EOL;
   echo '  -o, --out <file>           Output file for entire graph (for XML output, i.e., graphml mode)', PHP_EOL;
   echo '  -c, --count <number>       Initial value of node counter (defaults to 0)', PHP_EOL;
+  echo '  -d, --db <file>            Path to Schema file in csv format', PHP_EOL;
 }
 
 /**
@@ -186,11 +197,14 @@ function parse_file( $path, $exporter) : int {
 
     // The above may throw a ParseError. We only export to the output
     // file(s) if that didn't happen.
-    $fnode = $exporter->store_filenode( $finfo->getFilename());
+    
+   $fnode = $exporter->store_filenode( $finfo->getFilename());
+
     $tnode = $exporter->store_toplevelnode( Exporter::TOPLEVEL_FILE, $path, 1, count(file($path)));
-    $astroot = $exporter->export( $ast, $tnode);
+    $astroot = $exporter->export( $ast, $tnode, $user_tainted_variables_map);
     $exporter->store_rel( $tnode, $astroot, "PARENT_OF");
     $exporter->store_rel( $fnode, $tnode, "FILE_OF");
+    
     //echo ast_dump( $ast), PHP_EOL;
   }
   catch( ParseError $e) {
@@ -199,6 +213,36 @@ function parse_file( $path, $exporter) : int {
   }
 
   return $fnode;
+}
+
+/*
+Navex : This function returns the db constraints (retrieved from an application's schema and stored in "schema.csv") of the application that matches $path argument 
+*/
+function findDBConstraints($path,$dbConstrFile ){
+$row = 1;
+$ret = "";
+//$dbConstrFile example file = "/home/user/schema.csv"
+print_r($dbConstrFile); 
+if (($handle = fopen($dbConstrFile, "r")) !== FALSE) {
+    while (($data = fgetcsv($handle, 4000, "\t")) !== FALSE) { //4000 is the number of max lines to read from the csv file
+        //this loops over the recordes one by one 
+        $num = count($data); //the number of col in each row
+        $row++;
+
+           // echo $data[$c] . "<br />\n"; //to get a specific cell in a row 
+           if(strpos($path, $data[0]) !== false ){
+                $ret = $ret."[";
+               for ($c=0; $c < $num; $c++) {
+                     $ret = $ret . $data[$c]."_,_";
+               }
+               $ret= $ret."],,";
+               //array_push($ret, $data); 
+             }
+    }
+    fclose($handle);
+    //$ret = print_r( $ret);
+    return $ret;
+  }
 }
 
 /**
@@ -224,13 +268,20 @@ function parse_file( $path, $exporter) : int {
  *         top-level call) always finds itself interesting and always
  *         stores a directory node for itself.
  */
-function parse_dir( $path, $exporter, $top = true) : int {
+function parse_dir( $path, $exporter, $top = true, $dbConstrFile="") : int {
+    
+
+ //Navex: the $dbCons (db constraints) of each application will be stored in the Directory node
+    if (file_exists($dbConstrFile) && is_readable( $dbConstrFile))
+      $dbCons = findDBConstraints($path, $dbConstrFile);
+    else 
+      $dbCons = "";
 
   // save any interesting directory/file indices in the current folder
   $found = [];
   // if the current folder finds itself interesting, we will create a
   // directory node for it and return its index
-  $dirnode = $top ? $exporter->store_dirnode( basename( $path)) : -1;
+  $dirnode = $top ? $exporter->store_dirnode( basename( $path), $dbCons) : -1;
 
   $dhandle = opendir( $path);
 
@@ -248,7 +299,7 @@ function parse_dir( $path, $exporter, $top = true) : int {
   // if the current folder finds itself interesting...
   if( !empty( $found)) {
     if( !$top)
-      $dirnode = $exporter->store_dirnode( basename( $path));
+      $dirnode = $exporter->store_dirnode( basename( $path), $dbCons);
     foreach( $found as $i => $nodeindex)
       $exporter->store_rel( $dirnode, $nodeindex, "DIRECTORY_OF");
   }
@@ -312,7 +363,11 @@ elseif( is_dir( $path)) {
     error_log( "[ERROR] ".$e->getMessage());
     exit( 1);
   }
-  parse_dir( $path, $exporter);
+
+  if( isset($dbConstrFile )) 
+   parse_dir( $path, $exporter, true , $dbConstrFile);
+  else 
+    parse_dir( $path, $exporter);
 }
 else {
   error_log( '[ERROR] The given path is neither a regular file nor a directory.');

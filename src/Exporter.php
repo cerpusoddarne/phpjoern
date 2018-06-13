@@ -3,6 +3,8 @@
 // needed for the flag constants -- i.e., essentially get_flag_info()
 // used in format_flags()
 require_once 'util.php';
+include_once('TaintedVariables.php');
+include_once('TaintSource.php');
 
 /**
  * This abstract class defines the various methods implemented by its
@@ -46,6 +48,7 @@ abstract class Exporter {
   /** Delimiter for arrays, used by format_flags() */
   protected $array_delim = ";";
 
+  
   /**
    * Exports a syntax tree by recursing through the tree and calling
    * the functions store_node() and store_rel() appropriately.
@@ -77,6 +80,7 @@ abstract class Exporter {
    *         function was called.)
    */
   public function export( $ast, $funcid, $nodeline = 0, $childname = "", $childnum = 0, $namespace = "", $uses = [], $classname = "") : int {
+
       
     // (1) if $ast is an AST node, print info and recurse
     // An instance of ast\Node declares:
@@ -108,9 +112,10 @@ abstract class Exporter {
       if( isset( $ast->docComment)) {
         $nodedoccomment = $this->quote_and_escape( $ast->docComment);
       }
+
       
       // store node, export all children and store the relationships
-      $rootnode = $this->store_node( self::LABEL_AST, $nodetype, $nodeflags, $nodeline, null, $childnum, $funcid, $classname, $this->quote_and_escape( $namespace), $nodeendline, $nodename, $nodedoccomment);
+      $rootnode = $this->store_node( self::LABEL_AST, $nodetype, $nodeflags, $nodeline, null, $childnum, $funcid, $classname, $this->quote_and_escape( $namespace), $nodeendline, $nodename, $nodedoccomment, null);
 
       // If this node is a function/method/closure declaration, set $funcid.
       // Note that in particular, the decl node *itself* does not have $funcid set to its own id;
@@ -129,8 +134,8 @@ abstract class Exporter {
       // (2) the name (to that of the function)
       if( $ast->kind === ast\AST_FUNC_DECL || $ast->kind === ast\AST_METHOD || $ast->kind === ast\AST_CLOSURE) {
         $funcid = $rootnode;
-        $entrynode = $this->store_node( self::LABEL_ART, self::FUNC_ENTRY, null, null, null, null, $rootnode, $classname, $this->quote_and_escape( $namespace), null, $this->quote_and_escape( $nodename), null);
-        $exitnode = $this->store_node( self::LABEL_ART, self::FUNC_EXIT, null, null, null, null, $rootnode, $classname, $this->quote_and_escape( $namespace), null, $this->quote_and_escape( $nodename), null);
+        $entrynode = $this->store_node( self::LABEL_ART, self::FUNC_ENTRY, null, null, null, null, $rootnode, $classname, $this->quote_and_escape( $namespace), null, $this->quote_and_escape( $nodename), null, null, null);
+        $exitnode = $this->store_node( self::LABEL_ART, self::FUNC_EXIT, null, null, null, null, $rootnode, $classname, $this->quote_and_escape( $namespace), null, $this->quote_and_escape( $nodename), null, null,null);
         $this->store_rel( $rootnode, $entrynode, "ENTRY");
         $this->store_rel( $rootnode, $exitnode, "EXIT");
       }
@@ -173,7 +178,7 @@ abstract class Exporter {
           $tnode = $this->store_toplevelnode( Exporter::TOPLEVEL_CLASS, $nodename, $nodeline, $nodeendline, $i, $funcid, $namespace);
           // when exporting the AST_STMT_LIST below the AST_CLASS, the
           // funcid is set to the toplevel node's id, childname is set to "stmts" (doesn't really matter, we can invent a name here), and childnum is set to 0
-          $childnode = $this->export( $child, $tnode, $nodeline, "stmts", 0, $namespace, $uses, $classname);
+          $childnode = $this->export( $child, $tnode,  $nodeline, "stmts", 0, $namespace, $uses, $classname);
           $this->store_rel( $tnode, $childnode, "PARENT_OF"); // AST_TOPLEVEL -> AST_STMT_LIST
           $this->store_rel( $rootnode, $tnode, "PARENT_OF"); // AST_CLASS -> AST_TOPLEVEL
         }
@@ -185,7 +190,8 @@ abstract class Exporter {
         }
         // in all other cases, we simply recurse straightforwardly
         else {
-          $childnode = $this->export( $child, $funcid, $nodeline, $childrel, $i, $namespace, $uses, $classname);
+           
+             $childnode = $this->export( $child, $funcid, $nodeline, $childrel, $i, $namespace, $uses, $classname);
           $this->store_rel( $rootnode, $childnode, "PARENT_OF");
         }
 
@@ -202,7 +208,7 @@ abstract class Exporter {
     else if( is_string( $ast)) {
 
       $nodetype = gettype( $ast); // should be string
-      $rootnode = $this->store_node( self::LABEL_AST, $nodetype, null, $nodeline, $this->quote_and_escape( $ast), $childnum, $funcid, $classname, $this->quote_and_escape( $namespace));
+      $rootnode = $this->store_node( self::LABEL_AST, $nodetype, null, $nodeline, $this->quote_and_escape( $ast), $childnum, $funcid, $classname, $this->quote_and_escape( $namespace), null);
     }
 
     // (3) If it a plain value and more precisely null, there's no corresponding code per se, so we just print the type.
@@ -214,7 +220,7 @@ abstract class Exporter {
     else if( $ast === null) {
 
       $nodetype = gettype( $ast); // should be the string "NULL"
-      $rootnode = $this->store_node( self::LABEL_AST, $nodetype, null, $nodeline, null, $childnum, $funcid, $classname, $this->quote_and_escape( $namespace));
+      $rootnode = $this->store_node( self::LABEL_AST, $nodetype, null, $nodeline, null, $childnum, $funcid, $classname, $this->quote_and_escape( $namespace), null);
     }
 
     // (4) if it is a plain value but not a string and not null, cast to string and store the result as $nodecode
@@ -231,7 +237,7 @@ abstract class Exporter {
 
       $nodetype = gettype( $ast);
       $nodecode = (string) $ast;
-      $rootnode = $this->store_node( self::LABEL_AST, $nodetype, null, $nodeline, $nodecode, $childnum, $funcid, $classname, $this->quote_and_escape( $namespace));
+      $rootnode = $this->store_node( self::LABEL_AST, $nodetype, null, $nodeline, $nodecode, $childnum, $funcid, $classname, $this->quote_and_escape( $namespace), null);
     }
 
     return $rootnode;
@@ -320,7 +326,9 @@ abstract class Exporter {
    *
    * @return The index of the stored node.
    */
-  abstract protected function store_node( $label, $type, $flags, $lineno, $code = null, $childnum = null, $funcid = null, $classname = null, $namespace = null, $endlineno = null, $name = null, $doccomment = null) : int;
+
+   //Navex: modified version of store_node function to add a db property 
+  abstract protected function store_node( $label, $type, $flags, $lineno, $code = null, $childnum = null, $funcid = null, $classname = null, $namespace = null, $endlineno = null, $name = null, $doccomment = null, $dbconst= null) : int;
 
   /*
    * (Abstract) helper function to writes a relationship to a file.
@@ -342,7 +350,7 @@ abstract class Exporter {
    */
   public function store_filenode( $filename) : int {
 
-    return $this->store_node( self::LABEL_FS, self::FILE, null, null, null, null, null, null, null, null, $this->quote_and_escape( $filename), null);
+    return $this->store_node( self::LABEL_FS, self::FILE, null, null, null, null, null, null, null, null, $this->quote_and_escape( $filename), null, null);
   }
 
   /**
@@ -378,17 +386,18 @@ abstract class Exporter {
    *
    * @return The index of the stored toplevel node.
    */
-  public function store_toplevelnode( $flag, $name, $lineno, $endlineno, $childnum = null, $funcid = null, $namespace = null) : int {
 
-    $tnode = $this->store_node( self::LABEL_AST, self::TOPLEVEL, $flag, $lineno, null, $childnum, $funcid, null, $this->quote_and_escape( $namespace), $endlineno, $this->quote_and_escape( $name), null);
+  public function store_toplevelnode( $flag, $name, $lineno, $endlineno, $childnum = null, $funcid = null, $namespace = null ) : int {
+
+    $tnode = $this->store_node( self::LABEL_AST, self::TOPLEVEL, $flag, $lineno, null, $childnum, $funcid, null, $this->quote_and_escape( $namespace), $endlineno, $this->quote_and_escape( $name), null, null); 
 
     // For toplevel nodes, we create artificial entry and exit nodes (like file and dir nodes,
     // they are not actually part of the AST).
     // For the entry and exit nodes, we only set
     // (1) the funcid (to the id of the toplevel node), and
     // (2) the name (to that of the file or class)
-    $entrynode = $this->store_node( self::LABEL_ART, self::FUNC_ENTRY, null, null, null, null, $tnode, null, null, null, $this->quote_and_escape( $name), null);
-    $exitnode = $this->store_node( self::LABEL_ART, self::FUNC_EXIT, null, null, null, null, $tnode, null, null, null, $this->quote_and_escape( $name), null);
+    $entrynode = $this->store_node( self::LABEL_ART, self::FUNC_ENTRY, null, null, null, null, $tnode, null, null, null, $this->quote_and_escape( $name), null, null);
+    $exitnode = $this->store_node( self::LABEL_ART, self::FUNC_EXIT, null, null, null, null, $tnode, null, null, null, $this->quote_and_escape( $name), null, null);
     $this->store_rel( $tnode, $entrynode, "ENTRY");
     $this->store_rel( $tnode, $exitnode, "EXIT");
 
@@ -404,9 +413,14 @@ abstract class Exporter {
    *
    * @return The index of the stored directory node.
    */
-  public function store_dirnode( $filename) : int {
 
-    return $this->store_node( self::LABEL_FS, self::DIR, null, null, null, null, null, null, null, null, $this->quote_and_escape( $filename), null);
+  /* 
+    Navex: the db property will be stored in the application direcroty node
+  */
+  public function store_dirnode( $filename,  $dbCons ) : int {
+
+    return $this->store_node( self::LABEL_FS, self::DIR, null, null, null, null, null, null, null, null, $this->quote_and_escape( $filename), null, $dbCons);
+// return $this->store_node( self::LABEL_FS, self::DIR, null, null, null, null, null, null, null, null, $this->quote_and_escape( $filename), null, null);
   }
 
   /**
@@ -506,6 +520,8 @@ abstract class Exporter {
     return $this->nodecount;
   }
 }
+
+
 
 
 /**

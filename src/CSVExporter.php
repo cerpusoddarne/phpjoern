@@ -59,8 +59,8 @@ class CSVExporter extends Exporter {
     if( $this->format === self::JEXP_FORMAT) {
       $this->csv_delim = "\t";
       $this->array_delim = ",";
-
-      fwrite( $this->nhandle, "id:int{$this->csv_delim}labels:label{$this->csv_delim}type{$this->csv_delim}flags:string_array{$this->csv_delim}lineno:int{$this->csv_delim}code{$this->csv_delim}childnum:int{$this->csv_delim}funcid:int{$this->csv_delim}classname{$this->csv_delim}namespace{$this->csv_delim}endlineno:int{$this->csv_delim}name{$this->csv_delim}doccomment\n");
+   //Navex: adding the db property to the csv node file
+      fwrite( $this->nhandle, "id:int{$this->csv_delim}labels:label{$this->csv_delim}type{$this->csv_delim}flags:string_array{$this->csv_delim}lineno:int{$this->csv_delim}code{$this->csv_delim}childnum:int{$this->csv_delim}funcid:int{$this->csv_delim}classname{$this->csv_delim}namespace{$this->csv_delim}endlineno:int{$this->csv_delim}name{$this->csv_delim}doccomment{$this->csv_delim}db:string_array\n");
       fwrite( $this->rhandle, "start{$this->csv_delim}end{$this->csv_delim}type\n");
     }
     else {
@@ -83,9 +83,10 @@ class CSVExporter extends Exporter {
    * Exporter class to export a node to a CSV file and increase the node
    * counter.
    */
-  protected function store_node( $label, $type, $flags, $lineno, $code = null, $childnum = null, $funcid = null, $classname = null, $namespace = null, $endlineno = null, $name = null, $doccomment = null) : int {
+   //NAVEX: adding a DB property
+  protected function store_node( $label, $type, $flags, $lineno, $code = null, $childnum = null, $funcid = null, $classname = null, $namespace = null, $endlineno = null, $name = null, $doccomment = null , $db = null ) : int {
 
-    fwrite( $this->nhandle, "{$this->nodecount}{$this->csv_delim}{$label}{$this->csv_delim}{$type}{$this->csv_delim}{$flags}{$this->csv_delim}{$lineno}{$this->csv_delim}{$code}{$this->csv_delim}{$childnum}{$this->csv_delim}{$funcid}{$this->csv_delim}{$classname}{$this->csv_delim}{$namespace}{$this->csv_delim}{$endlineno}{$this->csv_delim}{$name}{$this->csv_delim}{$doccomment}\n");
+    fwrite( $this->nhandle, "{$this->nodecount}{$this->csv_delim}{$label}{$this->csv_delim}{$type}{$this->csv_delim}{$flags}{$this->csv_delim}{$lineno}{$this->csv_delim}{$code}{$this->csv_delim}{$childnum}{$this->csv_delim}{$funcid}{$this->csv_delim}{$classname}{$this->csv_delim}{$namespace}{$this->csv_delim}{$endlineno}{$this->csv_delim}{$name}{$this->csv_delim}{$doccomment}{$this->csv_delim}{$db}\n");
 
     // return the current node index, *then* increment it
     return $this->nodecount++;

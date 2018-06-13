@@ -83,7 +83,7 @@ class GraphMLExporter extends Exporter {
    * Exporter class to export a node to a CSV file and increase the node
    * counter.
    */
-  protected function store_node( $label, $type, $flags, $lineno, $code = null, $childnum = null, $funcid = null, $classname = null, $namespace = null, $endlineno = null, $name = null, $doccomment = null) : int {
+  protected function store_node( $label, $type, $flags, $lineno, $code = null, $childnum = null, $funcid = null, $classname = null, $namespace = null, $endlineno = null, $name = null, $doccomment = null, $db=null) : int {
 
     fwrite( $this->handle, '    <node id="'.$this->nodecount.'">'."\n");
     if( !($type === null || $type === "")) fwrite( $this->handle, '      <data key="label">'.$label.'</data>'."\n");
