@@ -123,4 +123,4 @@ sizes larger than 4 GB that you should allocate accordingly, e.g.,
 Once the import is finished, you will have a directory `graph.db` suitable for Neo4J.
 You may now point your Neo4J installation to that database and start your analysis.
 
-For further discussion, refer to [http://joern.readthedocs.io.](http://joern.readthedocs.io.)
+For further discussion, refer to [http://joern.readthedocs.io.](http://joern.readthedocs.io).
